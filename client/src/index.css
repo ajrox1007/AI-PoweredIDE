@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* Monaco Editor customizations */
+  .monaco-editor .suggest-widget {
+    @apply text-foreground bg-popover border border-border;
+  }
+
+  .monaco-suggestion {
+    @apply flex p-1 font-mono text-sm;
+  }
+
+  .monaco-suggestion.focused {
+    @apply bg-primary/30;
+  }
+
+  .resize-handle {
+    @apply absolute top-0 right-[-4px] w-2 h-full cursor-col-resize z-10;
+  }
+
+  .gutter {
+    @apply bg-popover bg-no-repeat bg-center;
+  }
+
+  .gutter:hover {
+    @apply bg-border;
+  }
+
+  .cmd-k-overlay {
+    @apply bg-black/70 backdrop-blur-sm;
+  }
+
+  .syntax-token {
+    @apply font-mono;
+  }
+
+  .syntax-keyword {
+    @apply text-blue-400;
+  }
+
+  .syntax-string {
+    @apply text-amber-300;
+  }
+
+  .syntax-comment {
+    @apply text-green-400;
+  }
+
+  .syntax-number {
+    @apply text-teal-300;
+  }
+
+  .syntax-function {
+    @apply text-yellow-200;
+  }
+
+  .syntax-type {
+    @apply text-teal-200;
+  }
+}

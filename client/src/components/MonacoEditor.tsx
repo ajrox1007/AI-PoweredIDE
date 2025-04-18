@@ -6,6 +6,7 @@ import { FileNode } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { setupAICompletions } from '@/lib/aiService';
 import AIActionsMenu from '@/components/AIActionsMenu';
+import { Split, MoreVertical, BotIcon, Grid, Layers } from 'lucide-react';
 
 interface MonacoEditorProps {
   file: FileNode;
@@ -35,29 +36,44 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
       // Setup Monaco with AI completions
       setupAICompletions(monaco, fetchCompletion);
       
-      // Set editor theme
-      monaco.editor.defineTheme('aicode-dark', {
+      // Set editor theme with cyberpunk style
+      monaco.editor.defineTheme('cyberpunk-dark', {
         base: 'vs-dark',
         inherit: true,
         rules: [
-          { token: 'comment', foreground: '6A9955' },
-          { token: 'keyword', foreground: '569CD6' },
-          { token: 'string', foreground: 'CE9178' },
-          { token: 'number', foreground: 'B5CEA8' },
-          { token: 'function', foreground: 'DCDCAA' },
-          { token: 'type', foreground: '4EC9B0' }
+          { token: 'comment', foreground: '4C4C6D', fontStyle: 'italic' },
+          { token: 'keyword', foreground: 'FF1493' }, // Neon pink
+          { token: 'string', foreground: '00FF7F' },  // Neon green
+          { token: 'number', foreground: '00FFFF' },  // Neon cyan
+          { token: 'function', foreground: '1E90FF' }, // Neon blue
+          { token: 'type', foreground: 'BD00FF' },    // Neon purple
+          { token: 'operator', foreground: 'FF1493' },
+          { token: 'delimiter', foreground: '888888' },
+          { token: 'variable', foreground: 'DCDCAA' },
+          { token: 'regexp', foreground: 'FF0000' }
         ],
         colors: {
-          'editor.background': '#1E1E1E',
-          'editor.foreground': '#CCCCCC',
-          'editorCursor.foreground': '#FFFFFF',
-          'editor.lineHighlightBackground': '#2A2D2E',
-          'editorLineNumber.foreground': '#858585',
-          'editorLineNumber.activeForeground': '#CCCCCC'
+          'editor.background': '#0A0A14',
+          'editor.foreground': '#EEEEFF',
+          'editorCursor.foreground': '#FF1493',
+          'editor.lineHighlightBackground': '#101026',
+          'editor.lineHighlightBorder': '#FF149322',
+          'editorLineNumber.foreground': '#444466',
+          'editorLineNumber.activeForeground': '#FF1493',
+          'editor.selectionBackground': '#FF149322',
+          'editor.findMatchBackground': '#00FF7F44',
+          'editor.findMatchHighlightBackground': '#00FFFF22',
+          'editorSuggestWidget.background': '#0A0A14',
+          'editorSuggestWidget.border': '#FF149366',
+          'editorSuggestWidget.foreground': '#EEEEFF',
+          'editorSuggestWidget.selectedBackground': '#FF149322',
+          'editorSuggestWidget.highlightForeground': '#FF1493',
+          'editorBracketMatch.background': '#00FFFF22',
+          'editorBracketMatch.border': '#00FFFF66'
         }
       });
       
-      monaco.editor.setTheme('aicode-dark');
+      monaco.editor.setTheme('cyberpunk-dark');
     }
   }, [monaco, fetchCompletion]);
 
@@ -133,23 +149,67 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
     console.log('Split editor requested');
   };
 
+  // Add glitch effect for a dystopian feel
+  const [isGlitching, setIsGlitching] = useState<boolean>(false);
+  
+  useEffect(() => {
+    // Random glitch effect
+    const glitchInterval = setInterval(() => {
+      if (Math.random() < 0.05) { // 5% chance of glitching
+        setIsGlitching(true);
+        setTimeout(() => setIsGlitching(false), 300);
+      }
+    }, 3000);
+    
+    return () => clearInterval(glitchInterval);
+  }, []);
+
   return (
     <div className="flex-1 overflow-hidden flex flex-col relative">
-      <div className="p-4 absolute right-0 top-0 z-10 text-muted-foreground flex gap-2">
+      {/* Background grid for cyberpunk effect */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.02] z-0" 
+        style={{
+          backgroundImage: `linear-gradient(rgba(75, 75, 100, 0.3) 1px, transparent 1px), 
+                           linear-gradient(90deg, rgba(75, 75, 100, 0.3) 1px, transparent 1px)`,
+          backgroundSize: '20px 20px'
+        }}>
+      </div>
+      
+      {/* Glitch effect overlay */}
+      {isGlitching && (
+        <div className="absolute inset-0 bg-primary/5 z-10 pointer-events-none">
+          <div className="absolute top-0 left-0 h-[1px] w-full bg-primary/30 animate-[scan_1s_linear_infinite]"></div>
+        </div>
+      )}
+      
+      {/* Editor actions */}
+      <div className="p-3 absolute right-2 top-2 z-20 flex gap-1.5 rounded-md bg-background/50 backdrop-blur-sm border border-primary/10">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={handleSplitEditor} 
           title="Split Editor"
+          className="h-7 w-7 rounded-sm hover:bg-primary/10 group"
         >
-          <span className="material-icons text-sm">vertical_split</span>
+          <Split className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
         </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          title="Toggle Grid"
+          className="h-7 w-7 rounded-sm hover:bg-primary/10 group"
+        >
+          <Grid className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
+        </Button>
+        
         <Button 
           variant="ghost" 
           size="icon" 
           title="More Actions"
+          className="h-7 w-7 rounded-sm hover:bg-primary/10 group"
         >
-          <span className="material-icons text-sm">more_vert</span>
+          <MoreVertical className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
         </Button>
       </div>
       
@@ -163,34 +223,50 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
         />
       )}
       
-      <Editor
-        height="100%"
-        language={file.language}
-        value={file.content}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        options={{
-          minimap: { enabled: true },
-          scrollBeyondLastLine: false,
-          fontFamily: "'Consolas', Monaco, monospace",
-          fontSize: 13,
-          lineNumbers: 'on',
-          renderLineHighlight: 'line',
-          cursorBlinking: 'smooth',
-          automaticLayout: true,
-          wordWrap: 'on',
-          formatOnPaste: true,
-          formatOnType: true,
-          tabSize: 2,
-          glyphMargin: true,
-          folding: true
-        }}
-      />
+      {/* Monaco Editor */}
+      <div className="flex-1 relative">
+        <Editor
+          height="100%"
+          language={file.language}
+          value={file.content}
+          onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
+          options={{
+            minimap: { 
+              enabled: true,
+              maxColumn: 60,
+              renderCharacters: false,
+              scale: 1
+            },
+            scrollBeyondLastLine: false,
+            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace",
+            fontSize: 13,
+            lineNumbers: 'on',
+            renderLineHighlight: 'line',
+            cursorBlinking: 'phase',
+            cursorSmoothCaretAnimation: 'on',
+            smoothScrolling: true,
+            automaticLayout: true,
+            wordWrap: 'on',
+            formatOnPaste: true,
+            formatOnType: true,
+            tabSize: 2,
+            glyphMargin: true,
+            folding: true,
+            bracketPairColorization: { enabled: true },
+            guides: {
+              bracketPairs: true,
+              indentation: true
+            }
+          }}
+        />
+      </div>
       
-      {/* AI information */}
-      <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm border border-border rounded-lg text-xs px-2 py-1 shadow-md text-muted-foreground flex items-center">
-        <span className="material-icons text-primary mr-1 text-sm">smart_toy</span>
-        Press Ctrl+I to use AI features
+      {/* AI information banner */}
+      <div className="absolute bottom-4 right-4 cyberpunk-box px-3 py-1.5 text-xs font-mono z-10 flex items-center space-x-2">
+        <BotIcon className="h-3.5 w-3.5 mr-1.5 text-primary" />
+        <span className="text-primary neon-text tracking-wide">CTRL+I</span>
+        <span className="text-muted-foreground">| ACTIVATE AI</span>
       </div>
     </div>
   );

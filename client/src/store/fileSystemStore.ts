@@ -244,8 +244,43 @@ export const useFileSystemStore = create<FileSystemState>()(
       partialize: (state) => ({
         files: state.files,
         activeFileId: state.activeFileId,
-        activeFiles: state.activeFiles.map(file => file.id) // Store only IDs to avoid circular references
-      })
+        activeFiles: state.activeFiles.filter(file => file && file.id).map(file => file.id) // Store only valid file IDs
+      }),
+      onRehydrateStorage: (state) => {
+        // When storage is rehydrated, ensure proper recovery from persistence
+        return (rehydratedState, error) => {
+          if (error) {
+            console.error('Error rehydrating file system store:', error);
+            // Reset to default state on error
+            state && state({
+              files: [],
+              activeFileId: null,
+              activeFiles: [],
+              activeFile: null
+            });
+            return;
+          }
+          
+          if (!rehydratedState) return;
+          
+          // Convert the activeFiles array of IDs back to file objects
+          const activeFileIds = rehydratedState.activeFiles || [];
+          const files = rehydratedState.files || [];
+          const activeFiles = activeFileIds
+            .map(id => findFileById(files, id))
+            .filter(Boolean) as FileNode[];
+            
+          const activeFileId = rehydratedState.activeFileId;
+          const activeFile = activeFileId ? findFileById(files, activeFileId) : null;
+          
+          // Update the state with hydrated file objects
+          state && state({
+            ...rehydratedState,
+            activeFiles,
+            activeFile
+          });
+        };
+      }
     }
   )
 );

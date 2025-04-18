@@ -43,15 +43,18 @@ const EditorContainer: FC = () => {
   // Add scan line effect that cycles through tabs
   const [scanTabIndex, setScanTabIndex] = useState<number>(0);
   
+  // Filter out any invalid active files
+  const validActiveFiles = activeFiles.filter(file => file && file.id);
+  
   useEffect(() => {
     const interval = setInterval(() => {
-      if (activeFiles.length > 0) {
-        setScanTabIndex(prev => (prev + 1) % activeFiles.length);
+      if (validActiveFiles.length > 0) {
+        setScanTabIndex(prev => (prev + 1) % validActiveFiles.length);
       }
     }, 800);
     
     return () => clearInterval(interval);
-  }, [activeFiles.length]);
+  }, [validActiveFiles.length]);
 
   // Get file icon for tabs
   const getFileIcon = (language?: string) => {
@@ -91,20 +94,20 @@ const EditorContainer: FC = () => {
         </div>
         
         <div className="flex items-center z-10 space-x-2 overflow-x-auto scrollbar-thin">
-          {activeFiles.map((file, index) => (
+          {validActiveFiles.map((file, index) => (
             <div 
-              key={file.id} 
+              key={file.id || index} 
               className={`
                 relative group py-1 px-3 flex items-center h-8
                 border-b-2 transition-all duration-300
-                ${activeFile?.id === file.id 
+                ${activeFile && activeFile.id === file.id 
                   ? 'border-primary text-primary neon-text' 
                   : 'border-transparent text-muted-foreground hover:border-primary/30 hover:text-foreground'}
               `}
               onClick={() => selectFile(file.id)}
             >
               {/* Active file highlight */}
-              {activeFile?.id === file.id && (
+              {activeFile && activeFile.id === file.id && (
                 <div className="absolute inset-0 bg-primary/5 -z-10 rounded-sm"></div>
               )}
               
@@ -115,8 +118,8 @@ const EditorContainer: FC = () => {
               
               {getFileIcon(file.language)}
               
-              <span className={`tracking-wide ${activeFile?.id === file.id ? 'font-medium' : ''}`}>
-                {file.name}
+              <span className={`tracking-wide ${activeFile && activeFile.id === file.id ? 'font-medium' : ''}`}>
+                {file.name || 'Untitled'}
               </span>
               
               <button 
@@ -132,7 +135,7 @@ const EditorContainer: FC = () => {
           ))}
           
           {/* Empty state */}
-          {activeFiles.length === 0 && (
+          {validActiveFiles.length === 0 && (
             <div className="py-1 px-3 text-muted-foreground">
               No files open
             </div>

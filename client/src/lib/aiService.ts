@@ -10,7 +10,7 @@ import { useFileSystemStore } from '@/store/fileSystemStore';
 export function setupAICompletions(monaco: any, fetchCompletionFn: any) {
   const debounceTime = 300; // milliseconds
   
-  const debouncedFetchCompletion = debounce(async (model, position) => {
+  const debouncedFetchCompletion = debounce(async (model: any, position: any) => {
     const code = model.getValue();
     const positionObj = {
       lineNumber: position.lineNumber,
@@ -28,7 +28,7 @@ export function setupAICompletions(monaco: any, fetchCompletionFn: any) {
   // Register completion provider for common languages
   ['javascript', 'typescript', 'html', 'css', 'json', 'python', 'markdown'].forEach(language => {
     monaco.languages.registerInlineCompletionsProvider(language, {
-      provideInlineCompletions: async (model, position) => {
+      provideInlineCompletions: async (model: any, position: any) => {
         const suggestions = await debouncedFetchCompletion(model, position);
         return {
           items: suggestions.map((text: string) => ({ 

@@ -72,7 +72,7 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
     }
     
     // Track cursor position changes
-    editor.onDidChangeCursorPosition(e => {
+    editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number }}) => {
       onPositionChange({ lineNumber: e.position.lineNumber, column: e.position.column });
     });
     

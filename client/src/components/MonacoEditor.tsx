@@ -87,6 +87,18 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
       editor.revealPositionInCenter(position);
     }
     
+    // Force model update with file content
+    if (file && file.content !== undefined) {
+      const model = editor.getModel();
+      if (model) {
+        // If the file content doesn't match the model value, update it
+        if (model.getValue() !== file.content) {
+          model.setValue(file.content);
+        }
+      }
+      console.log('Editor mounted with file:', file.name, 'content length:', file.content?.length || 0);
+    }
+    
     // Track cursor position changes
     editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number }}) => {
       onPositionChange({ lineNumber: e.position.lineNumber, column: e.position.column });
@@ -148,6 +160,18 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
     // Implementation would create a split view
     console.log('Split editor requested');
   };
+
+  // Track file content updates
+  useEffect(() => {
+    // If the editor ref exists and file content changes, update the editor
+    if (editorRef.current && file.content !== undefined) {
+      const model = editorRef.current.getModel();
+      if (model && model.getValue() !== file.content) {
+        model.setValue(file.content);
+        console.log('Updated editor content for file:', file.name);
+      }
+    }
+  }, [file.id, file.content]);
 
   // Add glitch effect for a dystopian feel
   const [isGlitching, setIsGlitching] = useState<boolean>(false);
@@ -231,7 +255,7 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
           value={file.content || "// Loading file content..."}
           onChange={handleEditorChange}
           onMount={handleEditorDidMount}
-          theme="vs-dark"
+          theme="cyberpunk-dark"
           options={{
             minimap: { 
               enabled: true,

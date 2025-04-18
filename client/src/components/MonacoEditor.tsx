@@ -1,10 +1,11 @@
-import { FC, useRef, useEffect } from 'react';
+import { FC, useRef, useEffect, useState } from 'react';
 import Editor, { Monaco, useMonaco } from '@monaco-editor/react';
 import { useFileSystemStore } from '@/store/fileSystemStore';
 import { useAiStore } from '@/store/aiStore';
 import { FileNode } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { setupAICompletions } from '@/lib/aiService';
+import AIActionsMenu from '@/components/AIActionsMenu';
 
 interface MonacoEditorProps {
   file: FileNode;
@@ -17,6 +18,17 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
   const { fetchCompletion } = useAiStore();
   const editorRef = useRef<any>(null);
   const monaco = useMonaco();
+  const [aiMenuConfig, setAiMenuConfig] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    selectedText: string;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    selectedText: '',
+  });
 
   useEffect(() => {
     if (monaco) {
@@ -63,6 +75,49 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
     editor.onDidChangeCursorPosition(e => {
       onPositionChange({ lineNumber: e.position.lineNumber, column: e.position.column });
     });
+    
+    // Add keyboard shortcut for AI-assisted operations
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => {
+      // Get the current selection
+      const selection = editor.getSelection();
+      const selectedText = editor.getModel().getValueInRange(selection);
+      
+      if (selectedText.trim().length > 0) {
+        // Show context menu with AI options
+        const editorCoords = editor.getScrolledVisiblePosition(selection.getStartPosition());
+        const domNode = editor.getDomNode();
+        if (domNode) {
+          const editorRect = domNode.getBoundingClientRect();
+          const x = editorRect.left + editorCoords.left;
+          const y = editorRect.top + editorCoords.top;
+          
+          // Show AI actions menu (this would be implemented separately)
+          showAiActionsMenu(x, y, selectedText);
+        }
+      } else {
+        // Trigger AI completion manually
+        console.log('Manually triggering AI completion');
+        // This would connect to your AI system to get completions
+      }
+    });
+  };
+  
+  // Show the AI actions menu
+  const showAiActionsMenu = (x: number, y: number, selectedText: string) => {
+    setAiMenuConfig({
+      visible: true,
+      x,
+      y,
+      selectedText
+    });
+  };
+  
+  // Hide the AI actions menu
+  const hideAiActionsMenu = () => {
+    setAiMenuConfig(prev => ({
+      ...prev,
+      visible: false
+    }));
   };
 
   // Handle content changes
@@ -98,6 +153,16 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
         </Button>
       </div>
       
+      {/* AI Actions Menu */}
+      {aiMenuConfig.visible && (
+        <AIActionsMenu
+          x={aiMenuConfig.x}
+          y={aiMenuConfig.y}
+          selectedText={aiMenuConfig.selectedText}
+          onClose={hideAiActionsMenu}
+        />
+      )}
+      
       <Editor
         height="100%"
         language={file.language}
@@ -121,6 +186,12 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
           folding: true
         }}
       />
+      
+      {/* AI information */}
+      <div className="absolute bottom-4 right-4 bg-background/80 backdrop-blur-sm border border-border rounded-lg text-xs px-2 py-1 shadow-md text-muted-foreground flex items-center">
+        <span className="material-icons text-primary mr-1 text-sm">smart_toy</span>
+        Press Ctrl+I to use AI features
+      </div>
     </div>
   );
 };

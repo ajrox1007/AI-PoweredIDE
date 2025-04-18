@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { FileNode } from '@shared/schema';
 import { saveFile, loadFiles, createFile, createFolder, deleteFile } from '@/lib/fileSystem';
 
+// Define the store state
 interface FileSystemState {
   files: FileNode[];
   activeFileId: string | null;
@@ -21,6 +22,7 @@ interface FileSystemState {
   refreshFiles: () => Promise<void>;
 }
 
+// Create the store
 export const useFileSystemStore = create<FileSystemState>()(
   persist(
     (set, get) => ({
@@ -34,6 +36,14 @@ export const useFileSystemStore = create<FileSystemState>()(
           const savedFiles = await loadFiles();
           if (savedFiles && savedFiles.length > 0) {
             set({ files: savedFiles });
+            
+            // Auto-select first file if none is active
+            if (!get().activeFile && savedFiles.length > 0) {
+              const firstFile = savedFiles.find(file => file.type === 'file');
+              if (firstFile) {
+                get().selectFile(firstFile.id);
+              }
+            }
           } else {
             // Create default files if none exist
             const defaultFiles: FileNode[] = [
@@ -59,7 +69,13 @@ export const useFileSystemStore = create<FileSystemState>()(
               }
             ];
             
-            set({ files: defaultFiles });
+            // Set files and auto-select first one
+            set({ 
+              files: defaultFiles,
+              activeFileId: defaultFiles[0].id,
+              activeFiles: [defaultFiles[0]],
+              activeFile: defaultFiles[0]
+            });
             
             // Save default files to storage
             for (const file of defaultFiles) {
@@ -68,6 +84,25 @@ export const useFileSystemStore = create<FileSystemState>()(
           }
         } catch (error) {
           console.error('Failed to load files:', error);
+          
+          // Create default files on error as fallback
+          const defaultFile: FileNode = {
+            id: uuidv4(),
+            name: 'index.js',
+            path: '/index.js',
+            type: 'file',
+            language: 'javascript',
+            content: '// Welcome to the AI-Powered Code Editor\n\nconsole.log("Hello, World!");\n',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          
+          set({
+            files: [defaultFile],
+            activeFileId: defaultFile.id,
+            activeFiles: [defaultFile],
+            activeFile: defaultFile
+          });
         }
       },
       
@@ -240,45 +275,34 @@ export const useFileSystemStore = create<FileSystemState>()(
       }
     }),
     {
-      name: 'file-system-storage',
+      name: 'file-system-storage-v3', // Updated storage name to clear previous corrupted state
       partialize: (state) => ({
         files: state.files,
         activeFileId: state.activeFileId,
-        activeFiles: state.activeFiles.filter(file => file && file.id).map(file => file.id) // Store only valid file IDs
+        activeFiles: state.activeFiles.filter(Boolean).map(file => file.id) // Store only valid file IDs
       }),
-      onRehydrateStorage: (state) => {
-        // When storage is rehydrated, ensure proper recovery from persistence
-        return (rehydratedState, error) => {
-          if (error) {
-            console.error('Error rehydrating file system store:', error);
-            // Reset to default state on error
-            state && state({
-              files: [],
-              activeFileId: null,
-              activeFiles: [],
-              activeFile: null
-            });
-            return;
-          }
-          
+      onRehydrateStorage: () => {
+        // When storage is rehydrated
+        return (rehydratedState) => {
           if (!rehydratedState) return;
           
-          // Convert the activeFiles array of IDs back to file objects
-          const activeFileIds = rehydratedState.activeFiles || [];
-          const files = rehydratedState.files || [];
-          const activeFiles = activeFileIds
-            .map(id => findFileById(files, id))
-            .filter(Boolean) as FileNode[];
+          // Make sure the app loads files and selects something on mount
+          setTimeout(() => {
+            const store = useFileSystemStore.getState();
             
-          const activeFileId = rehydratedState.activeFileId;
-          const activeFile = activeFileId ? findFileById(files, activeFileId) : null;
-          
-          // Update the state with hydrated file objects
-          state && state({
-            ...rehydratedState,
-            activeFiles,
-            activeFile
-          });
+            // Force load/creation if files missing
+            if (!store.files.length) {
+              store.loadSavedFiles();
+            }
+            
+            // Auto-select a file if needed
+            if (store.files.length && !store.activeFile) {
+              const firstFile = store.files.find(file => file.type === 'file');
+              if (firstFile) {
+                store.selectFile(firstFile.id);
+              }
+            }
+          }, 100);
         };
       }
     }

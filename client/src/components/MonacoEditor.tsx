@@ -227,10 +227,11 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
       <div className="flex-1 relative">
         <Editor
           height="100%"
-          language={file.language}
-          value={file.content}
+          language={file.language || "javascript"}
+          value={file.content || "// Loading file content..."}
           onChange={handleEditorChange}
           onMount={handleEditorDidMount}
+          theme="vs-dark"
           options={{
             minimap: { 
               enabled: true,

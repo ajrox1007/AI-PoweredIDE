@@ -1,9 +1,10 @@
-import { FC, useState } from 'react';
+import { FC, useState, useEffect } from 'react';
 import MonacoEditor from './MonacoEditor';
 import AIChatPanel from './AIChatPanel';
 import TerminalPanel from './TerminalPanel';
 import { useFileSystemStore } from '@/store/fileSystemStore';
 import { useEditorStore } from '@/store/editorStore';
+import { X, Code, FileCode, FileJson, FileType, Terminal, Braces, Bot, RefreshCw } from 'lucide-react';
 
 const EditorContainer: FC = () => {
   const { activeFile, activeFiles, closeFile, selectFile } = useFileSystemStore();
@@ -39,70 +40,125 @@ const EditorContainer: FC = () => {
     setAiPanelVisible(!aiPanelVisible);
   };
 
+  // Add scan line effect that cycles through tabs
+  const [scanTabIndex, setScanTabIndex] = useState<number>(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeFiles.length > 0) {
+        setScanTabIndex(prev => (prev + 1) % activeFiles.length);
+      }
+    }, 800);
+    
+    return () => clearInterval(interval);
+  }, [activeFiles.length]);
+
   // Get file icon for tabs
   const getFileIcon = (language?: string) => {
+    const iconProps = { className: "h-4 w-4 mr-1" };
+    
     switch(language) {
       case 'javascript':
-        return 'javascript';
+        return <FileCode {...iconProps} className="h-4 w-4 mr-1 neon-blue" />;
       case 'typescript':
-        return 'code';
+        return <FileCode {...iconProps} className="h-4 w-4 mr-1 neon-pink" />;
       case 'jsx':
       case 'tsx':
-        return 'code';
+        return <Code {...iconProps} className="h-4 w-4 mr-1 neon-cyan" />;
       case 'css':
-        return 'css';
+        return <FileType {...iconProps} className="h-4 w-4 mr-1 neon-green" />;
       case 'html':
-        return 'html';
+        return <Code {...iconProps} className="h-4 w-4 mr-1 neon-green" />;
       case 'json':
-        return 'data_object';
+        return <FileJson {...iconProps} className="h-4 w-4 mr-1 neon-pink" />;
       case 'markdown':
-        return 'description';
+        return <Braces {...iconProps} className="h-4 w-4 mr-1 text-gray-400" />;
       default:
-        return 'description';
-    }
-  };
-
-  const getFileIconColor = (language?: string) => {
-    switch(language) {
-      case 'javascript':
-        return 'text-primary';
-      case 'typescript':
-        return 'text-primary';
-      case 'jsx':
-      case 'tsx':
-        return 'text-accent-green';
-      case 'css':
-        return 'text-accent-purple';
-      default:
-        return 'text-muted-foreground';
+        return <Braces {...iconProps} className="h-4 w-4 mr-1 text-gray-400" />;
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col relative">
       {/* Editor Tabs */}
-      <div className="h-9 bg-background border-b border-border flex items-center px-2 text-sm">
-        {activeFiles.map(file => (
-          <div 
-            key={file.id} 
-            className={`${activeFile?.id === file.id ? 'bg-accent/20 text-foreground' : 'text-muted-foreground'} py-1 px-3 rounded-t flex items-center`}
-            onClick={() => selectFile(file.id)}
-          >
-            <span className={`material-icons ${getFileIconColor(file.language)} mr-1 text-sm`}>
-              {getFileIcon(file.language)}
-            </span>
-            <span>{file.name}</span>
-            <button 
-              className="ml-2 p-1 hover:bg-border rounded-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeFile(file.id);
-              }}
+      <div className="h-10 bg-background border-b border-primary/30 flex items-center px-2 text-xs font-mono relative overflow-hidden">
+        {/* Background grid and effects */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none" 
+          style={{
+            backgroundImage: `linear-gradient(rgba(75, 75, 100, 0.3) 1px, transparent 1px)`,
+            backgroundSize: '8px 8px'
+          }}>
+        </div>
+        
+        <div className="flex items-center z-10 space-x-2 overflow-x-auto scrollbar-thin">
+          {activeFiles.map((file, index) => (
+            <div 
+              key={file.id} 
+              className={`
+                relative group py-1 px-3 flex items-center h-8
+                border-b-2 transition-all duration-300
+                ${activeFile?.id === file.id 
+                  ? 'border-primary text-primary neon-text' 
+                  : 'border-transparent text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+              `}
+              onClick={() => selectFile(file.id)}
             >
-              <span className="material-icons text-xs">close</span>
-            </button>
-          </div>
-        ))}
+              {/* Active file highlight */}
+              {activeFile?.id === file.id && (
+                <div className="absolute inset-0 bg-primary/5 -z-10 rounded-sm"></div>
+              )}
+              
+              {/* Scan line effect */}
+              {scanTabIndex === index && (
+                <div className="absolute h-[1px] w-full top-1/2 left-0 bg-primary/30 z-10"></div>
+              )}
+              
+              {getFileIcon(file.language)}
+              
+              <span className={`tracking-wide ${activeFile?.id === file.id ? 'font-medium' : ''}`}>
+                {file.name}
+              </span>
+              
+              <button 
+                className={`ml-2 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-primary/20 hover:text-primary`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeFile(file.id);
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          
+          {/* Empty state */}
+          {activeFiles.length === 0 && (
+            <div className="py-1 px-3 text-muted-foreground">
+              No files open
+            </div>
+          )}
+        </div>
+        
+        {/* Right side actions */}
+        <div className="ml-auto flex items-center z-10">
+          <button className="p-1 rounded-sm hover:bg-primary/10 group">
+            <Terminal
+              className="h-4 w-4 group-hover:text-primary transition-colors duration-300"
+              onClick={toggleTerminal}
+            />
+          </button>
+          
+          <button className="p-1 rounded-sm hover:bg-primary/10 group ml-2">
+            <Bot
+              className="h-4 w-4 group-hover:text-primary transition-colors duration-300"
+              onClick={toggleAiPanel}
+            />
+          </button>
+          
+          <button className="p-1 rounded-sm hover:bg-primary/10 group ml-2">
+            <RefreshCw className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
+          </button>
+        </div>
       </div>
       
       {/* Editor content with split layout */}

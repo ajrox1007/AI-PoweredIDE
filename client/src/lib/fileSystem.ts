@@ -25,9 +25,54 @@ export async function saveFile(file: FileNode): Promise<void> {
 export async function loadFiles(): Promise<FileNode[]> {
   try {
     const files: FileNode[] = [];
+    let fixesApplied = false;
+    
     await fileStore.iterate((value: FileNode) => {
-      files.push(value);
+      // Filter out invalid entries and fix missing properties
+      if (value && value.id) {
+        // Fix potential missing content in files
+        if (value.type === 'file' && value.content === undefined) {
+          value.content = '';
+          fixesApplied = true;
+          console.log('Fixed missing content for file in loadFiles:', value.name);
+        }
+        
+        // Fix missing language property
+        if (value.type === 'file' && !value.language) {
+          const extension = value.name.split('.').pop() || '';
+          let language = 'plaintext';
+          
+          // Map common extensions to languages
+          switch(extension) {
+            case 'js': language = 'javascript'; break;
+            case 'ts': language = 'typescript'; break;
+            case 'jsx': language = 'jsx'; break;
+            case 'tsx': language = 'tsx'; break;
+            case 'css': language = 'css'; break;
+            case 'html': language = 'html'; break;
+            case 'json': language = 'json'; break;
+            case 'md': language = 'markdown'; break;
+            case 'py': language = 'python'; break;
+          }
+          
+          value.language = language;
+          fixesApplied = true;
+          console.log('Fixed missing language for file:', value.name, 'to', language);
+        }
+        
+        files.push(value);
+      }
     });
+    
+    // If we fixed any issues, save the files back
+    if (fixesApplied) {
+      console.log('Applied fixes to files, saving back to storage');
+      for (const file of files) {
+        await saveFile(file);
+      }
+    }
+    
+    console.log('Loaded files:', files.length);
     return files;
   } catch (error) {
     console.error('Error loading files:', error);
@@ -76,7 +121,16 @@ export async function deleteFile(fileId: string): Promise<void> {
  */
 export async function getFile(fileId: string): Promise<FileNode | null> {
   try {
-    return await fileStore.getItem(fileId);
+    const file = await fileStore.getItem<FileNode>(fileId);
+    
+    // Ensure file content is always a string
+    if (file && file.type === 'file' && file.content === undefined) {
+      file.content = ''; // Provide empty content rather than undefined
+      await saveFile(file); // Save the fixed file back to storage
+      console.log('Fixed missing content for file:', file.name);
+    }
+    
+    return file;
   } catch (error) {
     console.error('Error getting file:', error);
     throw error;

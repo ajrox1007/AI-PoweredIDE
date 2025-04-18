@@ -32,67 +32,83 @@ export const useFileSystemStore = create<FileSystemState>()(
       activeFile: null,
       
       loadSavedFiles: async () => {
+        // Create default files function to avoid repetition
+        const createDefaultFiles = async () => {
+          console.log('Creating default files');
+          const defaultFiles: FileNode[] = [
+            {
+              id: uuidv4(),
+              name: 'index.js',
+              path: '/index.js',
+              type: 'file',
+              language: 'javascript',
+              content: '// Welcome to the AI-Powered Code Editor\n\nconsole.log("Hello, World!");\n',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            },
+            {
+              id: uuidv4(),
+              name: 'README.md',
+              path: '/README.md',
+              type: 'file',
+              language: 'markdown',
+              content: '# AI-Powered Code Editor\n\nA modern code editor with AI capabilities.\n',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          ];
+          
+          // Set files and auto-select first one
+          set({ 
+            files: defaultFiles,
+            activeFileId: defaultFiles[0].id,
+            activeFiles: [defaultFiles[0]],
+            activeFile: defaultFiles[0]
+          });
+          
+          // Save default files to storage
+          for (const file of defaultFiles) {
+            await saveFile(file);
+          }
+        };
+        
         try {
-          const savedFiles = await loadFiles();
+          let savedFiles: FileNode[] = [];
+          try {
+            savedFiles = await loadFiles();
+          } catch (loadError) {
+            console.error('Failed to load files from storage, creating defaults:', loadError);
+            await createDefaultFiles();
+            return; // Exit early as we've created default files
+          }
+          
           if (savedFiles && savedFiles.length > 0) {
+            console.log('Loaded saved files:', savedFiles.length);
             set({ files: savedFiles });
             
             // Auto-select first file if none is active
             if (!get().activeFile && savedFiles.length > 0) {
               const firstFile = savedFiles.find(file => file.type === 'file');
               if (firstFile) {
+                console.log('Auto-selecting first file:', firstFile.name);
                 get().selectFile(firstFile.id);
               }
             }
           } else {
-            // Create default files if none exist
-            const defaultFiles: FileNode[] = [
-              {
-                id: uuidv4(),
-                name: 'index.js',
-                path: '/index.js',
-                type: 'file',
-                language: 'javascript',
-                content: '// Welcome to the AI-Powered Code Editor\n\nconsole.log("Hello, World!");\n',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              },
-              {
-                id: uuidv4(),
-                name: 'README.md',
-                path: '/README.md',
-                type: 'file',
-                language: 'markdown',
-                content: '# AI-Powered Code Editor\n\nA modern code editor with AI capabilities.\n',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }
-            ];
-            
-            // Set files and auto-select first one
-            set({ 
-              files: defaultFiles,
-              activeFileId: defaultFiles[0].id,
-              activeFiles: [defaultFiles[0]],
-              activeFile: defaultFiles[0]
-            });
-            
-            // Save default files to storage
-            for (const file of defaultFiles) {
-              await saveFile(file);
-            }
+            console.log('No saved files found, creating defaults');
+            await createDefaultFiles();
           }
         } catch (error) {
-          console.error('Failed to load files:', error);
+          console.error('Critical error in loadSavedFiles:', error);
           
-          // Create default files on error as fallback
+          // Create a single default file as emergency fallback
           const defaultFile: FileNode = {
             id: uuidv4(),
-            name: 'index.js',
-            path: '/index.js',
+            name: 'emergency-backup.js',
+            path: '/emergency-backup.js',
             type: 'file',
             language: 'javascript',
-            content: '// Welcome to the AI-Powered Code Editor\n\nconsole.log("Hello, World!");\n',
+            content: '// Emergency backup file created due to storage error\n\nconsole.log("Hello, World!");\n',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
@@ -103,28 +119,64 @@ export const useFileSystemStore = create<FileSystemState>()(
             activeFiles: [defaultFile],
             activeFile: defaultFile
           });
+          
+          // Try to save this emergency file
+          try {
+            await saveFile(defaultFile);
+          } catch (saveError) {
+            console.error('Failed to save emergency file:', saveError);
+          }
         }
       },
       
-      selectFile: (fileId: string) => {
-        const file = findFileById(get().files, fileId);
-        
-        if (file && file.type === 'file') {
-          // Check if file is already in activeFiles
-          const isFileActive = get().activeFiles.some(f => f.id === fileId);
+      selectFile: async (fileId: string) => {
+        try {
+          let file = findFileById(get().files, fileId);
           
-          if (!isFileActive) {
-            set(state => ({
-              activeFiles: [...state.activeFiles, file],
-              activeFileId: fileId,
-              activeFile: file
-            }));
-          } else {
-            set({
-              activeFileId: fileId,
-              activeFile: file
-            });
+          // Double-check file content by loading directly from storage
+          if (file && file.type === 'file') {
+            const freshFile = await getFile(fileId);
+            
+            // If we found a fresh copy with content, use it
+            if (freshFile && freshFile.content !== undefined) {
+              file = freshFile;
+              
+              // Update the file in our files array too
+              set(state => ({
+                files: updateFileInTree(state.files, fileId, freshFile)
+              }));
+            }
           }
+          
+          // Ensure the file has content
+          if (file && file.type === 'file') {
+            if (file.content === undefined) {
+              file.content = ''; // Provide default content if missing
+              console.log('Fixed missing content when selecting file:', file.name);
+            }
+            
+            // Check if file is already in activeFiles
+            const isFileActive = get().activeFiles.some(f => f.id === fileId);
+            
+            if (!isFileActive) {
+              console.log('Opening file:', file.name, 'content length:', file.content?.length || 0);
+              set(state => ({
+                activeFiles: [...state.activeFiles, file],
+                activeFileId: fileId,
+                activeFile: file
+              }));
+            } else {
+              console.log('Switching to active file:', file.name);
+              set({
+                activeFileId: fileId,
+                activeFile: file
+              });
+            }
+          } else {
+            console.warn('Attempted to select invalid file or folder:', fileId);
+          }
+        } catch (error) {
+          console.error('Error selecting file:', error);
         }
       },
       

@@ -3,188 +3,307 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Dark Purple/Blue Gradient Theme */
+    --background: 225 6% 8%; /* Very Dark Grey/Almost Black */
+    --foreground: 210 17% 85%; /* Slightly brighter Light Grey */
+    --card: 225 6% 12%; /* Darker card background */
+    --card-foreground: 210 17% 85%;
+    --popover: 225 6% 10%; /* Dark popover */
+    --popover-foreground: 210 17% 85%;
+    --primary: 210 17% 85%; /* Matches foreground */
+    --primary-foreground: 225 6% 10%;
+    --secondary: 225 6% 18%; /* Slightly lighter secondary elements */
+    --secondary-foreground: 210 17% 85%;
+    --muted: 225 6% 22%; /* Muted gray */
+    --muted-foreground: 215 10% 55%; /* Adjusted muted text color */
+    --accent: 260 70% 65%; /* PRIMARY ACCENT IS NOW PURPLE */
+    --accent-foreground: 210 17% 98%; /* White/Very light gray for text on accent */
+    --destructive: 0 72% 51%; /* Standard Red */
+    --destructive-foreground: 210 17% 98%;
+    --border: 225 6% 15%; /* Darker border */
+    --input: 225 6% 14%; /* Darker input background */
+    --ring: 260 70% 65%; /* Ring color matches purple accent */
+    --radius: 0.3rem;
+
+    /* Custom Sidebar Colors (Adjust if needed, or remove if inheriting) */
+    --sidebar-background: 225 6% 10%; /* Darker sidebar */
+    --sidebar-foreground: 210 17% 85%;
+    --sidebar-border: 225 6% 15%;
+    --sidebar-accent: 260 70% 65%; /* Purple accent */
+    --sidebar-accent-foreground: 210 17% 98%;
+
+    /* Chart colors (Keeping existing ones) */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 70% 50%;
+    --chart-3: 30 70% 50%;
+    --chart-4: 280 70% 50%;
+    --chart-5: 340 70% 50%;
+
+    --font-mono: Menlo, Monaco, Consolas, 'Courier New', monospace;
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; /* Define sans-serif stack */
+  }
+
+  .dark {
+    /* Mirror the :root variables */
+    --background: 225 6% 8%;
+    --foreground: 210 17% 85%;
+    --card: 225 6% 12%;
+    --card-foreground: 210 17% 85%;
+    --popover: 225 6% 10%;
+    --popover-foreground: 210 17% 85%;
+    --primary: 210 17% 85%;
+    --primary-foreground: 225 6% 10%;
+    --secondary: 225 6% 18%;
+    --secondary-foreground: 210 17% 85%;
+    --muted: 225 6% 22%;
+    --muted-foreground: 215 10% 55%;
+    --accent: 260 70% 65%;
+    --accent-foreground: 210 17% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 17% 98%;
+    --border: 225 6% 15%;
+    --input: 225 6% 14%;
+    --ring: 260 70% 65%;
+
+    --sidebar-background: 225 6% 10%;
+    --sidebar-foreground: 210 17% 85%;
+    --sidebar-border: 225 6% 15%;
+    --sidebar-accent: 260 70% 65%;
+    --sidebar-accent-foreground: 210 17% 98%;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 70% 50%;
+    --chart-3: 30 70% 50%;
+    --chart-4: 280 70% 50%;
+    --chart-5: 340 70% 50%;
+  }
+
   * {
     @apply border-border;
   }
 
-  :root {
-    --neon-pink: hsl(320, 100%, 50%);
-    --neon-blue: hsl(195, 100%, 60%);
-    --neon-green: hsl(135, 100%, 50%);
-    --neon-purple: hsl(280, 100%, 65%);
-    --neon-cyan: hsl(180, 100%, 55%);
-    --bg-dark: hsl(220, 10%, 10%);
-    --grid-color: rgba(75, 75, 100, 0.2);
-  }
-  
-  /* Custom scrollbar for dystopian look */
+  /* Modern scrollbar - updated colors */
   ::-webkit-scrollbar {
-    width: 8px;
+    width: 8px; /* Slightly wider */
     height: 8px;
   }
-  
+
   ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.3);
+    background: hsl(var(--background) / 0.5); /* Semi-transparent background */
+    border-radius: 4px;
   }
-  
+
   ::-webkit-scrollbar-thumb {
-    background: var(--neon-pink);
-    border-radius: 2px;
+    background: hsl(var(--muted) / 0.7); /* Muted thumb */
+    border-radius: 4px;
+    border: 2px solid transparent; /* Add padding */
+    background-clip: padding-box;
   }
-  
+
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--neon-cyan);
+    background: hsl(var(--accent) / 0.8); /* Purple accent on hover */
   }
 
   body {
-    @apply font-mono antialiased bg-background text-foreground;
-    background-color: var(--bg-dark);
-    background-image: 
-      linear-gradient(var(--grid-color) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-    background-size: 20px 20px;
+    @apply text-foreground antialiased;
+    font-family: var(--font-sans); /* DEFAULT FONT NOW SANS-SERIF */
+    min-width: 320px;
+    min-height: 100vh;
+    overflow: hidden;
+    /* Apply the gradient background globally */
+    background: linear-gradient(135deg, hsl(260, 50%, 10%), hsl(230, 50%, 12%), hsl(var(--background)));
+    background-attachment: fixed; /* Keep gradient fixed during scroll */
   }
 
-  /* Text shadow for all neon text effects */
-  .neon-text {
-    text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 20px currentColor;
-  }
-  
-  .neon-pink {
-    color: var(--neon-pink);
-  }
-  
-  .neon-blue {
-    color: var(--neon-blue);
-  }
-  
-  .neon-green {
-    color: var(--neon-green);
-  }
-  
-  .neon-border {
-    position: relative;
-  }
-  
-  .neon-border::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border: 1px solid var(--neon-pink);
-    box-shadow: 0 0 5px var(--neon-pink), inset 0 0 5px var(--neon-pink);
-    pointer-events: none;
-  }
-  
-  .glitch-text {
-    position: relative;
-    animation: glitch 3s infinite;
-  }
-  
-  @keyframes glitch {
-    0% { text-shadow: none; }
-    2% { text-shadow: 1px 0 0 red, -1px 0 0 blue; }
-    4% { text-shadow: none; }
-    70% { text-shadow: none; }
-    72% { text-shadow: -1px 0 0 red, 1px 0 0 blue; }
-    74% { text-shadow: none; }
-    100% { text-shadow: none; }
-  }
-  
-  @keyframes scan {
-    0% { top: -5%; }
-    100% { top: 105%; }
-  }
-  
-  /* Futuristic elements */
-  .cyberpunk-box {
-    @apply relative border border-primary rounded;
-    background-color: rgba(20, 20, 30, 0.7);
-    box-shadow: 0 0 15px rgba(162, 0, 255, 0.2);
-  }
-  
-  .cyberpunk-box::before {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: -1px;
-    right: -1px;
-    bottom: -1px;
-    background: linear-gradient(45deg, var(--neon-pink), var(--neon-blue));
-    z-index: -1;
-    filter: blur(8px);
-    opacity: 0.5;
+  /* Ensure inputs/textareas use sans-serif by default */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
   }
 
-  /* Monaco Editor customizations */
-  .monaco-editor .suggest-widget {
-    @apply text-foreground border border-primary;
-    background-color: rgba(20, 20, 30, 0.95) !important;
-    box-shadow: 0 0 10px var(--neon-pink) !important;
+  /* Code elements should still use monospace */
+  code, pre, .font-mono, .monaco-editor {
+     font-family: var(--font-mono) !important; /* Ensure monospace override */
   }
 
-  .monaco-suggestion {
-    @apply flex p-1 font-mono text-sm;
-    border-left: 2px solid var(--neon-pink);
+  /* Reset base heading styles if needed, or rely on utilities */
+  h1, h2, h3, h4, h5, h6 {
+     /* font-family: inherit; */ /* Optional: if you want headings to also be monospace */
   }
 
-  .monaco-suggestion.focused {
-    @apply bg-primary/30;
-    text-shadow: 0 0 5px var(--neon-pink);
+  /* Keep scrollbar-thin utility if used elsewhere, or remove */
+  .scrollbar-thin {
+     scrollbar-width: thin;
+     scrollbar-color: hsl(var(--muted)) hsl(var(--background));
   }
 
-  .resize-handle {
-    @apply absolute top-0 right-[-4px] w-2 h-full cursor-col-resize z-10;
-    background: linear-gradient(90deg, transparent, var(--neon-pink), transparent);
+  /* Remove or adapt old neon/cyberpunk specific styles if they exist */
+  .neon-text, .glitch-text, .cyberpunk-box, .neon-pink, .neon-blue, .neon-green, .neon-border {
+    /* Remove or redefine these based on new design */
+    /* Example: removing properties */
+    text-shadow: none;
+    color: inherit; /* Reset color */
+    border: inherit; /* Reset border */
+    box-shadow: none;
+    background: none;
+  }
+   .cyberpunk-box::before, .cyberpunk-box::after {
+    display: none; /* Remove pseudo-elements */
   }
 
-  .gutter {
-    @apply bg-no-repeat bg-center;
-    background-color: rgba(30, 30, 40, 0.8);
-  }
+   /* Remove specific Monaco Editor overrides if using theme */
+  /* .monaco-editor .suggest-widget { ... } */
+  /* .monaco-suggestion { ... } */
+  /* .monaco-suggestion.focused { ... } */
+  /* .resize-handle { ... } */
+  /* .gutter { ... } */
+  /* .gutter:hover { ... } */
+  /* .cmd-k-overlay { ... } */
 
-  .gutter:hover {
-    background-color: rgba(50, 50, 60, 0.8);
-    box-shadow: 0 0 10px var(--neon-pink);
-  }
+   /* Remove old syntax highlighting overrides if using theme */
+  /* .syntax-token { ... } */
+  /* .syntax-keyword { ... } */
+  /* .syntax-string { ... } */
+  /* .syntax-comment { ... } */
+  /* .syntax-number { ... } */
+  /* .syntax-function { ... } */
+  /* .syntax-type { ... } */
 
-  .cmd-k-overlay {
-    @apply bg-black/80 backdrop-blur-md;
-  }
+  /* Remove old scrollbar styles */
+  /* These are duplicated and replaced by the 'Modern scrollbar' section above */
 
-  /* Syntax highlighting with dystopian neon colors */
-  .syntax-token {
-    @apply font-mono;
-  }
-
-  .syntax-keyword {
-    color: var(--neon-pink);
-    text-shadow: 0 0 3px var(--neon-pink);
-  }
-
-  .syntax-string {
-    color: var(--neon-green);
-    text-shadow: 0 0 3px var(--neon-green);
-  }
-
-  .syntax-comment {
-    color: hsl(240, 30%, 60%);
-  }
-
-  .syntax-number {
-    color: var(--neon-cyan);
-    text-shadow: 0 0 3px var(--neon-cyan);
-  }
-
-  .syntax-function {
-    color: var(--neon-blue);
-    text-shadow: 0 0 3px var(--neon-blue);
-  }
-
-  .syntax-type {
-    color: var(--neon-purple);
-    text-shadow: 0 0 3px var(--neon-purple);
-  }
 }
+
+/* Add other layers or styles below if necessary */
+
+/* Ensure html, body, and root take full viewport */
+html,
+body,
+#root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* General button styling (can be component-specific via @apply) */
+/* Example: If not using Tailwind components for buttons */
+/*
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  cursor: pointer;
+  transition: border-color 0.25s, background-color 0.25s;
+}
+button:hover {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--accent));
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+*/
+
+/* Custom utility for subtle text */
+.text-subtle {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Custom utility for icon-like buttons */
+.icon-button {
+  background: none;
+  border: none;
+  padding: 0.25em;
+  color: hsl(var(--muted-foreground));
+  transition: color 0.2s ease-in-out;
+}
+
+.icon-button:hover {
+  color: hsl(var(--foreground));
+  /* background-color: hsl(var(--accent)); */ /* Optional subtle background */
+}
+
+/* Styling for react-resizable handles */
+.react-resizable-handle {
+  background: hsl(var(--muted));
+  opacity: 0.7;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.react-resizable-handle:hover {
+  background: hsl(var(--accent));
+  opacity: 1;
+}
+
+/* Specific handle styles */
+.react-resizable-handle-e {
+  width: 5px !important;
+  cursor: col-resize;
+  right: -2.5px; /* Center the handle */
+  height: 100%;
+  top: 0;
+}
+
+.react-resizable-handle-s {
+  height: 5px !important;
+  cursor: row-resize;
+  bottom: -2.5px; /* Center the handle */
+  width: 100%;
+  left: 0;
+}
+
+/* Monaco Editor specific styles (if needed beyond theme) */
+.monaco-editor .view-overlays .current-line {
+  border: none !important; /* Remove default border */
+  /* Use theme's line highlight or define custom */
+  /* background-color: hsla(var(--accent), 0.1); */
+}
+
+.monaco-editor .margin {
+  /* Use theme's gutter background or define custom */
+  /* background-color: hsl(var(--background)) !important; */
+}
+
+.monaco-editor {
+  /* Global editor styles */
+}
+
+/* AI Activity Decorations */
+.ai-modifying-line .view-line {
+  /* Subtle background pulse or color change */
+  /* background-color: hsl(var(--accent) / 0.05); */
+  animation: pulse-bg 1.5s infinite ease-in-out;
+}
+
+.ai-modifying-glyph {
+  /* Use a lucide icon or a symbol */
+  /* background-image: url('data:image/svg+xml,...'); */
+  background-color: hsl(var(--accent) / 0.7);
+  width: 4px !important;
+  margin-left: 3px;
+  border-radius: 2px;
+}
+
+@keyframes pulse-bg {
+  0% { background-color: hsl(var(--accent) / 0.03); }
+  50% { background-color: hsl(var(--accent) / 0.10); }
+  100% { background-color: hsl(var(--accent) / 0.03); }
+}
+
+/* Monaco Editor specific overrides (Ensure they don't conflict) */
+/* ... potentially existing monaco styles ... */

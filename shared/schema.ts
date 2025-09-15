@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import type { Change } from 'diff'; // Import the diff Change type
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -82,11 +83,19 @@ export type AiCompletion = typeof aiCompletions.$inferSelect;
 export type InsertAiChat = z.infer<typeof insertAiChatSchema>;
 export type AiChat = typeof aiChats.$inferSelect;
 
+// Type for modify_code intent object
+export type ModifyCodeIntent = {
+  intent: 'modify_code';
+  prompt: string;
+}
+
 // Chat message type for frontend
 export type ChatMessage = {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  // Content can be a simple string or the structured intent object
+  content: string | ModifyCodeIntent; 
   timestamp: number;
+  diff?: Change[]; // Add optional diff property
 };
 
 // File type for frontend file system

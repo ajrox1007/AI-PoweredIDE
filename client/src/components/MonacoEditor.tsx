@@ -1,12 +1,14 @@
-import { FC, useRef, useEffect, useState } from 'react';
-import Editor, { Monaco, useMonaco } from '@monaco-editor/react';
+import { FC, useRef, useEffect, useState, useCallback } from 'react';
+import Editor, { Monaco, useMonaco, loader } from '@monaco-editor/react';
+import * as monacoEditor from 'monaco-editor'; // Import monaco itself
 import { useFileSystemStore } from '@/store/fileSystemStore';
-import { useAiStore } from '@/store/aiStore';
+import { useAiStore } from '@/store/aiStore'; // Import AI store
+import { useEditorStore } from '@/store/editorStore'; // Import Editor store
 import { FileNode } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { setupAICompletions } from '@/lib/aiService';
 import AIActionsMenu from '@/components/AIActionsMenu';
-import { Split, MoreVertical, BotIcon, Grid, Layers } from 'lucide-react';
+import { Split, MoreVertical, BotIcon, Grid, Layers, Sparkles } from 'lucide-react'; // Add Sparkles icon
 
 interface MonacoEditorProps {
   file: FileNode;
@@ -14,11 +16,28 @@ interface MonacoEditorProps {
   onPositionChange: (position: { lineNumber: number; column: number }) => void;
 }
 
+// Define types for Monaco interfaces used
+type IStandaloneCodeEditor = monacoEditor.editor.IStandaloneCodeEditor;
+type ICodeLensProvider = monacoEditor.languages.CodeLensProvider;
+type IRange = monacoEditor.IRange;
+type ICodeLensList = monacoEditor.languages.CodeLensList;
+type ICodeLens = monacoEditor.languages.CodeLens;
+type CancellationToken = monacoEditor.CancellationToken;
+type ITextModel = monacoEditor.editor.ITextModel;
+
 const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange }) => {
   const { updateFileContent } = useFileSystemStore();
-  const { fetchCompletion } = useAiStore();
-  const editorRef = useRef<any>(null);
+  // Destructure isLoading and aiStatus from aiStore
+  const { fetchCompletion, fixCodeSelection, isLoading, aiStatus, setSelectedCodeForChat } = useAiStore();
+  const { registerEditor, unregisterEditor } = useEditorStore(); // Get editor registration actions
+  const editorRef = useRef<IStandaloneCodeEditor | null>(null);
   const monaco = useMonaco();
+  // const [currentSelection, setCurrentSelection] = useState<IRange | null>(null);
+  // const codeLensProviderRef = useRef<monacoEditor.IDisposable | null>(null);
+  // State to hold the IDs of current decorations
+  const [aiDecorations, setAiDecorations] = useState<string[]>([]);
+
+  // --- AI Actions Menu State (Keep existing or adapt) ---
   const [aiMenuConfig, setAiMenuConfig] = useState<{
     visible: boolean;
     x: number;
@@ -30,166 +49,252 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
     y: 0,
     selectedText: '',
   });
+  // --- End AI Actions Menu State ---
 
+  // Define Theme and Setup AI Completions
   useEffect(() => {
     if (monaco) {
-      // Setup Monaco with AI completions
       setupAICompletions(monaco, fetchCompletion);
-      
-      // Set editor theme with cyberpunk style
-      monaco.editor.defineTheme('cyberpunk-dark', {
+      monaco.editor.defineTheme('modern-dark', {
         base: 'vs-dark',
         inherit: true,
         rules: [
-          { token: 'comment', foreground: '4C4C6D', fontStyle: 'italic' },
-          { token: 'keyword', foreground: 'FF1493' }, // Neon pink
-          { token: 'string', foreground: '00FF7F' },  // Neon green
-          { token: 'number', foreground: '00FFFF' },  // Neon cyan
-          { token: 'function', foreground: '1E90FF' }, // Neon blue
-          { token: 'type', foreground: 'BD00FF' },    // Neon purple
-          { token: 'operator', foreground: 'FF1493' },
-          { token: 'delimiter', foreground: '888888' },
-          { token: 'variable', foreground: 'DCDCAA' },
-          { token: 'regexp', foreground: 'FF0000' }
+          { token: 'comment', foreground: '6a9955' },
+          { token: 'keyword', foreground: 'c586c0' },
+          { token: 'number', foreground: 'b5cea8' },
+          { token: 'string', foreground: 'ce9178' },
+          { token: 'operator', foreground: 'd4d4d4' },
+          { token: 'identifier', foreground: '9cdcfe' },
+          { token: 'type', foreground: '4ec9b0' },
+          { token: 'function', foreground: 'dcdcaa' },
+          { token: 'delimiter', foreground: 'd4d4d4' },
+          { token: 'variable', foreground: '9cdcfe' },
+          { token: 'regexp', foreground: 'd16969' },
         ],
         colors: {
-          'editor.background': '#0A0A14',
-          'editor.foreground': '#EEEEFF',
-          'editorCursor.foreground': '#FF1493',
-          'editor.lineHighlightBackground': '#101026',
-          'editor.lineHighlightBorder': '#FF149322',
-          'editorLineNumber.foreground': '#444466',
-          'editorLineNumber.activeForeground': '#FF1493',
-          'editor.selectionBackground': '#FF149322',
-          'editor.findMatchBackground': '#00FF7F44',
-          'editor.findMatchHighlightBackground': '#00FFFF22',
-          'editorSuggestWidget.background': '#0A0A14',
-          'editorSuggestWidget.border': '#FF149366',
-          'editorSuggestWidget.foreground': '#EEEEFF',
-          'editorSuggestWidget.selectedBackground': '#FF149322',
-          'editorSuggestWidget.highlightForeground': '#FF1493',
-          'editorBracketMatch.background': '#00FFFF22',
-          'editorBracketMatch.border': '#00FFFF66'
+          'editor.background': '#111118',
+          'editor.foreground': '#E2E8F0',
+          'editorCursor.foreground': '#FFFFFF',
+          'editor.lineHighlightBackground': '#1E293B40',
+          'editorLineNumber.foreground': '#475569',
+          'editorLineNumber.activeForeground': '#E2E8F0',
+          'editor.selectionBackground': '#27354A',
+          'editorSuggestWidget.background': '#1E293B',
+          'editorSuggestWidget.border': '#334155',
+          'editorSuggestWidget.foreground': '#E2E8F0',
+          'editorSuggestWidget.selectedBackground': '#3B82F640',
+          'editorBracketMatch.background': '#3B82F620',
+          'editorBracketMatch.border': '#3B82F660',
+          'editorGutter.background': '#111118',
         }
       });
-      
-      monaco.editor.setTheme('cyberpunk-dark');
+      monaco.editor.setTheme('modern-dark');
     }
   }, [monaco, fetchCompletion]);
 
-  // Handle editor mount
-  const handleEditorDidMount = (editor: any, monaco: Monaco) => {
+  // Keep useEffect primarily for cleanup and handling file changes
+  useEffect(() => {
+    const currentFileId = file.id;
+    // We no longer register here, just define the cleanup
+
+    // Cleanup function: Unregister the editor when the component unmounts
+    // or when the file.id changes (triggering the effect to re-run)
+    return () => {
+      // No need to check editorRef.current here, just use the ID
+      // The editorStore's unregister function handles non-existent keys gracefully
+      if (currentFileId) {
+        unregisterEditor(currentFileId);
+        console.log(`Editor unregistered for file: ${currentFileId}`);
+      }
+    };
+  // Depend on file.id to re-run cleanup/setup for the new file
+  // Also depend on unregister function identity (though unlikely to change)
+  }, [file.id, unregisterEditor]); 
+
+  // Add a separate effect to ensure editor is registered when the ref is available
+  useEffect(() => {
+    // This ensures the editor is registered after mounting
+    if (editorRef.current && file.id) {
+      console.log(`Ensuring editor is registered for file: ${file.id}`);
+      registerEditor(file.id, editorRef.current);
+    }
+  }, [editorRef.current, file.id, registerEditor]);
+
+  // Handle editor mount - THIS is where we will now register
+  const handleEditorDidMount = (editor: IStandaloneCodeEditor, _monacoInstance: Monaco) => {
     editorRef.current = editor;
+    const currentFileId = file.id; // Get current file ID
+
+    // --- REGISTER EDITOR HERE --- 
+    if (currentFileId) {
+      console.log(`Calling registerEditor from handleEditorDidMount for file: ${currentFileId}`);
+      registerEditor(currentFileId, editor);
+    } else {
+      console.error("Cannot register editor: file ID is undefined or null");
+    }
+    // --------------------------- 
     
-    // Set cursor position if specified
+    // Set editor options
+    editor.updateOptions({
+        fontFamily: "var(--font-mono)", // Use the CSS variable for font
+        fontSize: 13, // Example: Set font size
+        fontWeight: '600', // Set font weight to semi-bold
+        lineHeight: 20, // Example: Set line height
+        minimap: { enabled: false }, // Example: Disable minimap
+        wordWrap: 'on', // Example: Enable word wrap
+        renderLineHighlight: 'gutter', // Example: Highlight active line in gutter
+        scrollbar: {
+            verticalScrollbarSize: 8, // Example: Adjust scrollbar size
+            horizontalScrollbarSize: 8,
+        },
+        glyphMargin: true, // Ensure glyph margin is enabled for decorations
+    });
+
     if (position) {
       editor.setPosition(position);
       editor.revealPositionInCenter(position);
     }
-    
-    // Force model update with file content
     if (file && file.content !== undefined) {
       const model = editor.getModel();
-      if (model) {
-        // If the file content doesn't match the model value, update it
-        if (model.getValue() !== file.content) {
-          model.setValue(file.content);
-        }
+      if (model && model.getValue() !== file.content) {
+        model.setValue(file.content);
       }
-      console.log('Editor mounted with file:', file.name, 'content length:', file.content?.length || 0);
     }
-    
-    // Track cursor position changes
-    editor.onDidChangeCursorPosition((e: { position: { lineNumber: number; column: number }}) => {
+    editor.onDidChangeCursorPosition((e) => {
       onPositionChange({ lineNumber: e.position.lineNumber, column: e.position.column });
     });
+
+    // --- Listen for Selection Changes ---
+    editor.onDidChangeCursorSelection(e => {
+      const selection = e.selection;
+      const model = editor.getModel();
+      // Update selection state only if it's not empty
+      if (model && !selection.isEmpty()) {
+        const selectedText = model.getValueInRange(selection);
+        setSelectedCodeForChat(selectedText, selection);
+      } else {
+        // Clear selection if it becomes empty, passing null for range too
+        setSelectedCodeForChat(null, null);
+      }
+    });
     
-    // Add keyboard shortcut for AI-assisted operations
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyI, () => {
-      // Get the current selection
+    // --- Existing AI menu shortcut (keep or remove as needed) ---
+    editor.addCommand(monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KeyI, () => {
       const selection = editor.getSelection();
-      const selectedText = editor.getModel().getValueInRange(selection);
-      
-      if (selectedText.trim().length > 0) {
-        // Show context menu with AI options
+      if (selection && !selection.isEmpty()) {
+        const selectedText = editor.getModel()?.getValueInRange(selection) || '';
         const editorCoords = editor.getScrolledVisiblePosition(selection.getStartPosition());
         const domNode = editor.getDomNode();
-        if (domNode) {
+        if (domNode && editorCoords) {
           const editorRect = domNode.getBoundingClientRect();
           const x = editorRect.left + editorCoords.left;
           const y = editorRect.top + editorCoords.top;
-          
-          // Show AI actions menu (this would be implemented separately)
           showAiActionsMenu(x, y, selectedText);
         }
       } else {
-        // Trigger AI completion manually
-        console.log('Manually triggering AI completion');
-        // This would connect to your AI system to get completions
+        console.log('Ctrl+I: No text selected for AI Actions menu');
       }
     });
   };
-  
-  // Show the AI actions menu
-  const showAiActionsMenu = (x: number, y: number, selectedText: string) => {
-    setAiMenuConfig({
-      visible: true,
-      x,
-      y,
-      selectedText
-    });
-  };
-  
-  // Hide the AI actions menu
-  const hideAiActionsMenu = () => {
-    setAiMenuConfig(prev => ({
-      ...prev,
-      visible: false
-    }));
-  };
+
+  // Re-setup CodeLens if selection changes (debounced potentially)
+  // useEffect(() => {
+  //    setupCodeLens();
+  //    // Cleanup on unmount or when dependencies change
+  //    return () => {
+  //      codeLensProviderRef.current?.dispose();
+  //    };
+  // }, [setupCodeLens]); // Re-run when setupCodeLens function identity changes
+
+  // Show/Hide AI Actions Menu (existing functions)
+  const showAiActionsMenu = (x: number, y: number, selectedText: string) => { setAiMenuConfig({ visible: true, x, y, selectedText }); };
+  const hideAiActionsMenu = () => { setAiMenuConfig({ ...aiMenuConfig, visible: false }); };
 
   // Handle content changes
   const handleEditorChange = (value: string | undefined) => {
-    if (value !== undefined) {
-      updateFileContent(file.id, value);
+    if (value !== undefined && editorRef.current) {
+      // Check if the change is different from the current file content
+      // Prevents loop caused by file update triggering editor change
+      const currentContent = useFileSystemStore.getState().files.find(f => f.id === file.id)?.content;
+      if (value !== currentContent) {
+         updateFileContent(file.id, value);
+      }
     }
   };
 
   // Split editor vertically
-  const handleSplitEditor = () => {
-    // Implementation would create a split view
-    console.log('Split editor requested');
-  };
+  const handleSplitEditor = () => { console.log("Split editor clicked"); /* Implementation needed */ };
 
-  // Track file content updates
+  // Track file content updates (ensure model exists)
   useEffect(() => {
-    // If the editor ref exists and file content changes, update the editor
     if (editorRef.current && file.content !== undefined) {
       const model = editorRef.current.getModel();
       if (model && model.getValue() !== file.content) {
+        // Check cursor position before setting value to avoid losing it
+        const currentPosition = editorRef.current.getPosition();
         model.setValue(file.content);
-        console.log('Updated editor content for file:', file.name);
+        if (currentPosition) {
+            editorRef.current.setPosition(currentPosition);
+        }
       }
     }
-  }, [file.id, file.content]);
+  }, [file.content, file.id]); // Added file.id dependency
 
-  // Add glitch effect for a dystopian feel
-  const [isGlitching, setIsGlitching] = useState<boolean>(false);
-  
+  // --- Effect for AI Activity Decorations ---
   useEffect(() => {
-    // Random glitch effect
-    const glitchInterval = setInterval(() => {
-      if (Math.random() < 0.05) { // 5% chance of glitching
-        setIsGlitching(true);
-        setTimeout(() => setIsGlitching(false), 300);
-      }
-    }, 3000);
+    if (!editorRef.current || !monaco) return;
+
+    const editor = editorRef.current;
+    const model = editor.getModel();
+    if (!model) return;
+
+    // Determine if AI is actively modifying this specific file
+    const isAiModifying = isLoading && aiStatus.toLowerCase().includes('modification') || aiStatus.toLowerCase().includes('receiving') || aiStatus.toLowerCase().includes('fixing');
+
+    let newDecorationIds: string[] = [];
+    if (isAiModifying) {
+      const fullRange = model.getFullModelRange();
+      const newDecorations = [
+        {
+          range: fullRange,
+          options: {
+            isWholeLine: true,
+            className: 'ai-modifying-line', // Background pulse/highlight
+            glyphMarginClassName: 'ai-modifying-glyph', // Glyph margin indicator
+          }
+        }
+      ];
+      // Replace previous decorations from this effect instance with the new ones
+      newDecorationIds = editor.deltaDecorations([], newDecorations);
+    } else {
+      // If AI is not modifying, ensure any decorations from previous runs are cleared
+      newDecorationIds = editor.deltaDecorations(aiDecorations, []); 
+    }
     
-    return () => clearInterval(glitchInterval);
-  }, []);
+    // Update the state with the latest IDs (needed for cleanup)
+    setAiDecorations(newDecorationIds); 
+
+    // Cleanup function to remove decorations when component unmounts or dependencies change
+    // It uses the 'aiDecorations' value captured when this effect instance ran.
+    return () => {
+      if (editorRef.current && aiDecorations.length > 0) {
+         try {
+             // Use the captured aiDecorations IDs from the effect's closure
+             editorRef.current.deltaDecorations(aiDecorations, []);
+         } catch (e) {
+             console.warn("Error clearing decorations on cleanup:", e);
+         }
+      }
+    };
+  // Depend only on AI status and editor readiness, NOT on aiDecorations itself
+  }, [isLoading, aiStatus, editorRef, monaco]); // Removed aiDecorations dependency
+
+  // Glitch Effect (existing)
+  const [isGlitching, setIsGlitching] = useState<boolean>(false);
+  useEffect(() => { /* ... existing glitch effect ... */ }, []);
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col relative">
+    <div className="h-full w-full relative">
       {/* Background grid for cyberpunk effect */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.02] z-0" 
         style={{
@@ -247,42 +352,35 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
         />
       )}
       
-      {/* Monaco Editor */}
-      <div className="flex-1 relative">
+      {/* Monaco Editor Wrapper */}
+      <div className="h-full relative">
         <Editor
           height="100%"
-          language={file.language || "javascript"}
-          value={file.content || "// Loading file content..."}
-          onChange={handleEditorChange}
+          language={file.language || 'plaintext'}
+          value={file.content || ''} 
+          theme="modern-dark" // Consider updating this if global theme changed significantly
           onMount={handleEditorDidMount}
-          theme="cyberpunk-dark"
+          onChange={handleEditorChange}
           options={{
-            minimap: { 
-              enabled: true,
-              maxColumn: 60,
-              renderCharacters: false,
-              scale: 1
-            },
-            scrollBeyondLastLine: false,
-            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace",
-            fontSize: 13,
-            lineNumbers: 'on',
-            renderLineHighlight: 'line',
-            cursorBlinking: 'phase',
-            cursorSmoothCaretAnimation: 'on',
-            smoothScrolling: true,
+            selectOnLineNumbers: true,
             automaticLayout: true,
-            wordWrap: 'on',
-            formatOnPaste: true,
-            formatOnType: true,
-            tabSize: 2,
+            // Keeping previous options, ensure glyphMargin is true for decoration
             glyphMargin: true,
-            folding: true,
-            bracketPairColorization: { enabled: true },
-            guides: {
-              bracketPairs: true,
-              indentation: true
-            }
+            fontFamily: "var(--font-mono)",
+            fontSize: 13,
+            fontWeight: '600',
+            lineHeight: 20,
+            minimap: { enabled: false },
+            wordWrap: 'on',
+            renderLineHighlight: 'gutter',
+            scrollbar: {
+                verticalScrollbarSize: 8,
+                horizontalScrollbarSize: 8,
+            },
+            lightbulb: {
+               enabled: monacoEditor.editor.ShowLightbulbIconMode.On
+            },
+            codeLens: true, 
           }}
         />
       </div>
@@ -298,3 +396,4 @@ const MonacoEditor: FC<MonacoEditorProps> = ({ file, position, onPositionChange 
 };
 
 export default MonacoEditor;
+

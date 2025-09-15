@@ -1,191 +1,314 @@
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useCallback } from 'react';
 import { useFileSystemStore } from '@/store/fileSystemStore';
 import { FileNode } from '@shared/schema';
 import { 
   FileText, FolderOpen, Search, GitBranch, 
-  Bug, Package, PlusCircle, FolderPlus, RefreshCw,
-  FileCode, FileJson, FileType, FileImage, 
-  Database, Cpu, FileCog, Bot
+  Bug, Bot, FolderPlus, PlusCircle, RefreshCw, Trash2,
+  FileCode, FileJson, FileType, FileImage, Wand2,
+  Loader2,
+  Download
 } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+
+// Define fixed filenames (should match Editor.tsx)
+const PROBLEM_FILENAME = 'problem.py';
+const README_FILENAME = 'problem_readme.md';
 
 const Sidebar: FC = () => {
   const { 
     files, 
     activeFileId, 
+    activeFile,
     selectFile, 
     createNewFile, 
     createNewFolder,
-    refreshFiles 
+    refreshFiles,
+    clearCache,
+    addFileWithContent,
+    deleteFileById,
+    updateFileContent
   } = useFileSystemStore();
 
   const [activeTab, setActiveTab] = useState<string>('files');
-  const [scanLine, setScanLine] = useState<number>(0);
-  
-  // Create scan line effect in file tree
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setScanLine(prev => (prev + 1) % 50); // Cycle through files
-    }, 100);
-    
-    return () => clearInterval(interval);
-  }, []);
-  
+  const [isGeneratingProblem, setIsGeneratingProblem] = useState<boolean>(false);
+  const [isInstallingDeps, setIsInstallingDeps] = useState<boolean>(false);
+
+  // --- Generate New Problem Handler with explicit file dependency ---
+  const handleGenerateNewProblem = useCallback(async () => {
+    console.log('Generating/Updating problem...');
+    setIsGeneratingProblem(true);
+    try {
+      // 1. Fetch new content
+      const response = await fetch('/api/generate-problem', { method: 'POST' });
+      if (!response.ok) {
+        // Consider showing user-friendly error via toast/state
+        const errorText = await response.text();
+        console.error(`HTTP error! status: ${response.status}`, errorText);
+        throw new Error(`Failed to fetch problem: ${response.statusText}`);
+      }
+      const { pythonCode, readmeContent } = await response.json();
+
+      let problemFileIdToSelect: string | null = null;
+
+      // Use the 'files' state variable from the hook directly
+      const existingProblemFile = files.find(f => f.name === PROBLEM_FILENAME);
+      const existingReadmeFile = files.find(f => f.name === README_FILENAME);
+
+      // 3. Update or Add Python file
+      if (existingProblemFile) {
+        console.log('Updating existing problem.py', existingProblemFile.id);
+        await updateFileContent(existingProblemFile.id, pythonCode);
+        problemFileIdToSelect = existingProblemFile.id;
+      } else {
+        console.log('Adding new problem.py');
+        const newId = await addFileWithContent(PROBLEM_FILENAME, 'python', pythonCode);
+        if (newId) {
+             problemFileIdToSelect = newId;
+        } else {
+             console.error('Failed to get ID for newly added problem.py');
+        }
+      }
+
+      // 4. Update or Add README file
+      if (existingReadmeFile) {
+        console.log('Updating existing problem_readme.md', existingReadmeFile.id);
+        await updateFileContent(existingReadmeFile.id, readmeContent);
+      } else {
+        console.log('Adding new problem_readme.md');
+        await addFileWithContent(README_FILENAME, 'markdown', readmeContent);
+      }
+
+      console.log('Problem files generated/updated.');
+      
+      // 5. Select the problem file (if we have an ID)
+      if (problemFileIdToSelect) {
+          console.log('Selecting problem file:', problemFileIdToSelect);
+          selectFile(problemFileIdToSelect);
+      } else {
+          console.warn('Could not determine ID of problem.py to select it.');
+          // Maybe refresh the whole file list as a fallback?
+          // refreshFiles(); 
+      }
+      
+    } catch (error) {
+      console.error('Failed to generate/update problem files:', error);
+      // Show error to user (e.g., toast)
+    } finally {
+       setIsGeneratingProblem(false);
+    }
+  }, [files, selectFile, addFileWithContent, updateFileContent]); 
+  // --- End Handler ---
+
+  // --- Install Dependencies Handler ---
+  const handleInstallDependencies = useCallback(async () => {
+    if (!activeFile || activeFile.language !== 'python') {
+      alert('Please open a Python file first.'); // Simple feedback
+      return;
+    }
+
+    setIsInstallingDeps(true);
+    console.log(`Attempting to install dependencies for ${activeFile.name}...`);
+
+    try {
+      const code = activeFile.content || '';
+      // Regex to find imports (handles 'import x', 'import x as y', 'from x import y')
+      // This is a basic regex and might miss complex cases
+      const importRegex = /(?:^|\n)\s*(?:import|from)\s+([a-zA-Z0-9_.]+)/g;
+      const libraries = new Set<string>();
+      let match;
+      while ((match = importRegex.exec(code)) !== null) {
+        // Extract the base module name (e.g., 'pandas' from 'pandas.DataFrame')
+        const baseModule = match[1].split('.')[0];
+        if (baseModule) {
+            libraries.add(baseModule);
+        }
+      }
+
+      // Basic filtering (example: remove common built-ins or known non-pip packages)
+      const commonBuiltins = new Set(['os', 'sys', 'math', 'json', 'datetime', 're', 'collections']);
+      // Convert Set to Array explicitly before filtering
+      const installableLibs = Array.from(libraries).filter(lib => !commonBuiltins.has(lib));
+
+      if (installableLibs.length > 0) {
+        const command = `pip3 install ${installableLibs.join(' ')}`;
+        console.log('Dispatching command:', command);
+        // Dispatch command to terminal
+        window.dispatchEvent(new CustomEvent('terminal:run-command', { detail: { command } }));
+        // Give terminal a moment to receive command before resetting state
+        await new Promise(resolve => setTimeout(resolve, 200)); 
+      } else {
+        console.log('No external libraries found to install.');
+        // Optionally show a message to the user
+      }
+
+    } catch (error) {
+      console.error('Error parsing file or dispatching install command:', error);
+      // Show error to user
+    } finally {
+      setIsInstallingDeps(false);
+    }
+  }, [activeFile]); // Depend on activeFile
+  // --- End Handler ---
+
   const getFileIcon = (file: FileNode) => {
+    const iconClass = "h-4 w-4 mr-2 text-muted-foreground flex-shrink-0";
     if (file.type === 'folder') {
-      return <FolderOpen className="h-4 w-4 mr-1 text-primary/60" />;
+      return <FolderOpen className={iconClass} />;
     }
     
-    // Map file extensions to icons
     switch(file.language) {
       case 'javascript':
-        return <FileCode className="h-4 w-4 mr-1 neon-pink" />;
       case 'typescript':
-        return <FileCode className="h-4 w-4 mr-1 neon-blue" />;
       case 'jsx':
       case 'tsx':
-        return <FileCode className="h-4 w-4 mr-1 neon-blue" />;
-      case 'css':
-        return <FileType className="h-4 w-4 mr-1 neon-green" />;
       case 'html':
-        return <FileCode className="h-4 w-4 mr-1 neon-green" />;
+        return <FileCode className={iconClass} />;
       case 'json':
-        return <FileJson className="h-4 w-4 mr-1 neon-pink" />;
+        return <FileJson className={iconClass} />;
+      case 'css':
+        return <FileType className={iconClass} />;
       case 'markdown':
-        return <FileText className="h-4 w-4 mr-1 text-muted-foreground" />;
+        return <FileText className={iconClass} />;
       default:
-        return <FileText className="h-4 w-4 mr-1 text-muted-foreground" />;
+        return <FileText className={iconClass} />;
     }
   };
 
   const renderFileTree = (fileNodes: FileNode[], depth = 0) => {
-    return fileNodes.map((file, index) => (
-      <div key={file.id} className="relative">
-        {/* Add a scan line effect */}
-        {scanLine === index && (
-          <div className="absolute h-[1px] w-full bg-primary/20 z-10"></div>
-        )}
-        
-        {/* File or folder item */}
-        <div 
-          className={`py-1 px-3 ml-${depth * 3} my-[2px] flex items-center rounded-sm cursor-pointer 
-            ${activeFileId === file.id 
-              ? 'bg-primary/20 text-primary neon-text' 
-              : 'hover:bg-background/20'}`}
-          onClick={() => file.type === 'file' ? selectFile(file.id) : undefined}
+    return fileNodes.map((file) => (
+      <div key={file.id}>
+        <Button
+          variant="ghost"
+          className={cn(
+            "w-full justify-start h-7 py-1 px-2 rounded-sm text-xs font-normal",
+            `ml-${depth * 3}`,
+            activeFileId === file.id 
+              ? 'bg-accent text-accent-foreground' 
+              : 'hover:bg-accent/50'
+          )}
+          onClick={() => {
+            if (file.type === 'file') {
+              try {
+                selectFile(String(file.id));
+              } catch (err) {
+                console.error('Sidebar: Error selecting file:', err);
+              }
+            }
+          }}
         >
           {getFileIcon(file)}
-          <span className={`text-xs ${activeFileId === file.id ? 'neon-text' : ''}`}>
+          <span className="truncate">
             {file.name}
           </span>
-          
-          {/* Highlight for active file */}
-          {activeFileId === file.id && (
-            <div className="absolute left-0 h-full w-[2px] bg-primary"></div>
-          )}
-        </div>
-        
-        {file.type === 'folder' && file.children && renderFileTree(file.children, depth + 1)}
+        </Button>
+        {file.type === 'folder' && file.children && (
+           <div className="">
+             {renderFileTree(file.children, depth + 1)}
+           </div>
+        )}
       </div>
     ));
   };
 
+  const iconTabs = [
+    { id: 'files', icon: FileText, label: 'Files' },
+    { id: 'search', icon: Search, label: 'Search' },
+    { id: 'source', icon: GitBranch, label: 'Source Control' },
+    { id: 'debug', icon: Bug, label: 'Debug' },
+    { id: 'ai', icon: Bot, label: 'AI Assistant' },
+  ];
+
   return (
-    <div className="w-64 border-r border-primary/30 flex flex-col relative overflow-hidden cyberpunk-box">
-      {/* Background grid and effects */}
-      <div className="absolute inset-0 opacity-10 pointer-events-none" 
-        style={{
-          backgroundImage: `linear-gradient(rgba(75, 75, 100, 0.3) 1px, transparent 1px), 
-                           linear-gradient(90deg, rgba(75, 75, 100, 0.3) 1px, transparent 1px)`,
-          backgroundSize: '20px 20px'
-        }}>
+    <div className="w-60 bg-sidebar flex flex-col border-r border-sidebar-border">
+      <div className="flex border-b border-sidebar-border p-1 justify-around">
+        {iconTabs.map((tab) => (
+          <Button
+            key={tab.id}
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-7 w-7",
+              activeTab === tab.id ? "text-accent-foreground bg-sidebar-accent" : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
+            )}
+            onClick={() => setActiveTab(tab.id)}
+            title={tab.label}
+          >
+            <tab.icon className="h-4 w-4" />
+          </Button>
+        ))}
       </div>
       
-      {/* Sidebar Tabs */}
-      <div className="h-10 flex items-center justify-around border-b border-primary/40 text-muted-foreground backdrop-blur-sm z-10">
-        <button 
-          className={`p-2 h-full flex items-center justify-center transition-colors duration-200 ${activeTab === 'files' ? 'border-b-2 border-primary neon-pink' : 'border-b-2 border-transparent hover:border-primary/30'}`}
-          onClick={() => setActiveTab('files')}
-        >
-          <FileText className="h-4 w-4" />
-        </button>
-        
-        <button 
-          className={`p-2 h-full flex items-center justify-center transition-colors duration-200 ${activeTab === 'search' ? 'border-b-2 border-primary neon-blue' : 'border-b-2 border-transparent hover:border-primary/30'}`}
-          onClick={() => setActiveTab('search')}
-        >
-          <Search className="h-4 w-4" />
-        </button>
-        
-        <button 
-          className={`p-2 h-full flex items-center justify-center transition-colors duration-200 ${activeTab === 'source' ? 'border-b-2 border-primary neon-green' : 'border-b-2 border-transparent hover:border-primary/30'}`}
-          onClick={() => setActiveTab('source')}
-        >
-          <GitBranch className="h-4 w-4" />
-        </button>
-        
-        <button 
-          className={`p-2 h-full flex items-center justify-center transition-colors duration-200 ${activeTab === 'debug' ? 'border-b-2 border-primary neon-cyan' : 'border-b-2 border-transparent hover:border-primary/30'}`}
-          onClick={() => setActiveTab('debug')}
-        >
-          <Bug className="h-4 w-4" />
-        </button>
-        
-        <button 
-          className={`p-2 h-full flex items-center justify-center transition-colors duration-200 ${activeTab === 'ai' ? 'border-b-2 border-primary neon-purple' : 'border-b-2 border-transparent hover:border-primary/30'}`}
-          onClick={() => setActiveTab('ai')}
-        >
-          <Bot className="h-4 w-4" />
-        </button>
-      </div>
-      
-      {/* Explorer panel */}
-      <div className="flex-1 overflow-auto z-10">
-        <div className="px-4 py-2 flex justify-between items-center text-xs font-bold tracking-widest relative">
-          {/* Title with futuristic decoration */}
-          <div className="flex items-center">
-            <div className="h-3 w-3 border-l-2 border-t-2 border-primary/80 -ml-2 mr-1"></div>
-            <span className="text-primary neon-text">EXPLORER</span>
-            <div className="h-3 w-3 border-r-2 border-b-2 border-primary/80 ml-1"></div>
-          </div>
-          
-          {/* Controls with cyberpunk styling */}
-          <div className="flex space-x-1">
-            <button 
-              className="p-1 rounded-sm hover:bg-primary/10 group transition-all duration-300"
-              onClick={createNewFolder}
-              title="New Folder"
-            >
-              <FolderPlus className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
-            </button>
-            
-            <button 
-              className="p-1 rounded-sm hover:bg-primary/10 group transition-all duration-300"
-              onClick={createNewFile}
-              title="New File"
-            >
-              <PlusCircle className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
-            </button>
-            
-            <button 
-              className="p-1 rounded-sm hover:bg-primary/10 group transition-all duration-300"
-              onClick={refreshFiles}
-              title="Refresh"
-            >
-              <RefreshCw className="h-3.5 w-3.5 group-hover:text-primary transition-colors duration-300" />
-            </button>
-          </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-2 flex justify-between items-center border-b border-sidebar-border">
+          <span className="text-xs font-semibold uppercase tracking-wider text-sidebar-foreground">
+             {activeTab === 'files' ? 'Explorer' : activeTab.toUpperCase()} 
+          </span>
+          {activeTab === 'files' && (
+            <div className="flex items-center gap-0.5">
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={createNewFolder} title="New Folder">
+                <FolderPlus className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={createNewFile} title="New File">
+                <PlusCircle className="h-3.5 w-3.5" />
+              </Button>
+              <Button 
+                 variant="ghost" 
+                 size="icon" 
+                 className="h-6 w-6" 
+                 onClick={handleGenerateNewProblem} 
+                 title="Generate New Problem"
+                 disabled={isGeneratingProblem}
+               >
+                 {isGeneratingProblem 
+                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                   : <Wand2 className="h-3.5 w-3.5" />
+                 } 
+               </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6" 
+                onClick={handleInstallDependencies} 
+                title="Install Python Dependencies (pip3)"
+                disabled={isInstallingDeps || activeFile?.language !== 'python'}
+              >
+                {isInstallingDeps 
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Download className="h-3.5 w-3.5" />
+                } 
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={refreshFiles} title="Refresh">
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                onClick={() => {
+                  if (window.confirm('This will reset all files to defaults. Continue?')) {
+                    clearCache();
+                  }
+                }}
+                title="Reset Files (Clear Cache)"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
         
-        {/* Decorative line */}
-        <div className="mx-4 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
-        
-        {/* File Tree with cyberpunk styling */}
-        <div className="mt-3 pb-5 relative">
-          {/* Vertical scan line effect */}
-          <div className="absolute h-full w-[1px] left-3 top-0 bg-primary/10"></div>
-          
-          {renderFileTree(files)}
-        </div>
+        {activeTab === 'files' && (
+          <ScrollArea className="flex-1 px-1 py-1">
+             {renderFileTree(files)}
+          </ScrollArea>
+        )}
+        {activeTab !== 'files' && (
+          <div className="p-4 text-sm text-muted-foreground">
+            {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Panel Content
+          </div>
+        )}
       </div>
     </div>
   );
